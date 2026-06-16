@@ -90,7 +90,7 @@ mini_bar() {
     elif [ "$pct" -gt 50 ]; then clr="\033[38;5;222m"
     else clr="\033[38;5;157m"; fi
     for ((i=0; i<filled; i++)); do out+="${clr}▰"; done
-    for ((i=filled; i<width; i++)); do out+="\033[38;5;238m▱"; done
+    for ((i=filled; i<width; i++)); do out+="\033[38;5;242m▱"; done
     printf '%b\033[0m' "$out"
 }
 pct_clr() {
@@ -124,13 +124,13 @@ else COST_CLR="\033[38;5;157m"; fi
 
 # ── Thinking glyph + effort word ────────────────────────
 if [ "$THINK" = "true" ]; then THINK_TOK="\033[38;5;176m✦\033[0m"
-else THINK_TOK="\033[2m\033[38;5;241m✦\033[0m"; fi
+else THINK_TOK="\033[38;5;245m✦\033[0m"; fi
 case "$EFFORT" in
   xhigh|max)  EFFORT_TOK="\033[38;5;176;1m$EFFORT\033[0m" ;;
   high)       EFFORT_TOK="\033[38;5;176m$EFFORT\033[0m" ;;
   medium)     EFFORT_TOK="\033[38;5;222m$EFFORT\033[0m" ;;
-  low)        EFFORT_TOK="\033[2m\033[38;5;241m$EFFORT\033[0m" ;;
-  *)          EFFORT_TOK="\033[2m\033[38;5;241m$EFFORT\033[0m" ;;
+  low)        EFFORT_TOK="\033[38;5;245m$EFFORT\033[0m" ;;
+  *)          EFFORT_TOK="\033[38;5;245m$EFFORT\033[0m" ;;
 esac
 
 # ── Limits: cached usage API (negative-cached + stale fallback), then stdin ──
@@ -166,7 +166,7 @@ fi
 # Last resort: whatever the status payload itself carried
 [ -z "$USAGE" ] && USAGE=$(echo "$DATA" | jq -c '.rate_limits // empty' 2>/dev/null || true)
 
-SEP="\033[2m\033[38;5;241m │ \033[0m"
+SEP="\033[38;5;245m │ \033[0m"
 RATE_LINE=""    # session / weekly / quota (own line)
 CREDIT_LINE=""  # extra credits (stacked under quota)
 if [ -n "$USAGE" ]; then
@@ -177,12 +177,12 @@ if [ -n "$USAGE" ]; then
 
     if [ -n "$f_util" ]; then
         p=$(printf "%.0f" "$f_util" 2>/dev/null || echo 0); r=$(fmt_reset "$(echo "$USAGE" | jq -r '.five_hour.resets_at // empty')")
-        seg="⏱️ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[2m\033[38;5;241m ⟳ ${r}\033[0m"
+        seg="⏱️ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[38;5;245m ⟳ ${r}\033[0m"
         add_rate "$seg"
     fi
     if [ -n "$w_util" ]; then
         p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_reset "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
-        seg="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[2m\033[38;5;241m ⟳ ${r}\033[0m"
+        seg="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[38;5;245m ⟳ ${r}\033[0m"
         add_rate "$seg"
     fi
     # Enterprise: five_hour/seven_day null → highest non-null named bucket as quota
@@ -193,7 +193,7 @@ if [ -n "$USAGE" ]; then
             | if . == null then empty else "\(.value.utilization)\t\(.value.resets_at // "")" end' 2>/dev/null || true)
         if [ -n "$top" ]; then
             p=$(printf "%.0f" "$(echo "$top" | cut -f1)" 2>/dev/null || echo 0); r=$(fmt_reset "$(echo "$top" | cut -f2)")
-            seg="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[2m\033[38;5;241m ⟳ ${r}\033[0m"
+            seg="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[38;5;245m ⟳ ${r}\033[0m"
             add_rate "$seg"
         fi
     fi
@@ -206,15 +206,15 @@ if [ -n "$USAGE" ]; then
         eud=$(awk "BEGIN{printf \"%.0f\", ${eu:-0}/100}" 2>/dev/null || echo 0)
         eld=$(awk "BEGIN{printf \"%.0f\", ${el:-0}/100}" 2>/dev/null || echo 0)
         epi=$(printf "%.0f" "${ep:-0}" 2>/dev/null || echo 0)
-        CREDIT_LINE="💳 $(mini_bar "$epi" 14) $(pct_clr "$epi")\$${eud}\033[2m\033[38;5;241m/\033[0m\$${eld} ${epi}%\033[0m"
+        CREDIT_LINE="💳 $(mini_bar "$epi" 14) $(pct_clr "$epi")\$${eud}\033[38;5;245m/\033[0m\$${eld} ${epi}%\033[0m"
     fi
 fi
 
 # ── Output ──────────────────────────────────────────────
 # Line 1 — identity. Data fields (model/dir/branch) go through printf %s so a name
 # containing a tab, %, or backslash can never inject control chars or desync columns.
-printf '\033[38;5;111;1m%s\033[0m\033[2m\033[38;5;245m%s\033[0m\033[2m\033[38;5;241m │ \033[0m\033[38;5;111m📁 %s\033[0m' "$MODEL_BASE" "$MODEL_TAG" "$DIR"
-[ -n "$BRANCH" ] && printf '\033[2m\033[38;5;241m │ \033[0m\033[38;5;176m🌿 %s\033[0m' "$BRANCH"
+printf '\033[38;5;111;1m%s\033[0m\033[38;5;245m%s\033[0m\033[38;5;245m │ \033[0m\033[38;5;111m📁 %s\033[0m' "$MODEL_BASE" "$MODEL_TAG" "$DIR"
+[ -n "$BRANCH" ] && printf '\033[38;5;245m │ \033[0m\033[38;5;176m🌿 %s\033[0m' "$BRANCH"
 printf '\n'
 # Line 2 — session (only numeric/enum data here)
 echo -e "🧠 ${BAR} ${CTX_CLR}${PCT}%\033[0m${SEP}${COST_CLR}\$${COST}\033[0m${SEP}${THINK_TOK} ${EFFORT_TOK}"

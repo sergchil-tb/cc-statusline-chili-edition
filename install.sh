@@ -19,7 +19,7 @@ DEST="$CLAUDE_DIR/statusline.sh"
 SETTINGS="$CLAUDE_DIR/settings.json"
 CMD="bash \"$DEST\""   # point the status line command at the file we actually install
 
-c_ok="\033[38;5;157m"; c_info="\033[38;5;111m"; c_warn="\033[38;5;222m"; c_dim="\033[2m"; c_rst="\033[0m"
+c_ok="\033[38;5;157m"; c_info="\033[38;5;111m"; c_warn="\033[38;5;222m"; c_dim="\033[38;5;245m"; c_rst="\033[0m"
 say()  { printf "${c_info}▸${c_rst} %s\n" "$1"; }
 ok()   { printf "${c_ok}✓${c_rst} %s\n" "$1"; }
 warn() { printf "${c_warn}!${c_rst} %s\n" "$1"; }
