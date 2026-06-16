@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Resilient by design: never abort mid-render — a blank status line is worse than a
+# partial one. No `set -e`. Homebrew bins are prepended so jq/bc resolve even when
+# Claude Code runs this with a minimal PATH (e.g. Apple Silicon /opt/homebrew/bin).
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 DATA=$(cat)
+
+if ! command -v jq >/dev/null 2>&1; then
+    printf 'cc-statusline: jq not found — run: brew install jq\n'
+    exit 0
+fi
 
 # ── Extract fields via single jq call ───────────────────
 IFS=$'\t' read -r MODEL DIR PCT CTX_SIZE COST_RAW EFFORT_RAW THINK_RAW < <(
@@ -25,9 +33,13 @@ IFS=$'\t' read -r MODEL DIR PCT CTX_SIZE COST_RAW EFFORT_RAW THINK_RAW < <(
         (.effort.level // ""),
         (.thinking.enabled // "")
     ] | @tsv'
-)
+) || true
 
-COST=$(printf "%.2f" "$COST_RAW")
+# Defensive defaults in case the read came back partial/empty
+MODEL="${MODEL:-Claude}"; PCT="${PCT:-0}"; CTX_SIZE="${CTX_SIZE:-200000}"
+COST_RAW="${COST_RAW:-0}"; EFFORT_RAW="${EFFORT_RAW:-}"; THINK_RAW="${THINK_RAW:-}"
+
+COST=$(printf "%.2f" "$COST_RAW" 2>/dev/null || echo "0.00")
 
 # ── Model name: strip "(… context)" suffix, append [1m] only for 1M window ──
 MODEL_BASE=$(printf '%s' "$MODEL" | sed -E 's/ *\([^)]*\)$//')
