@@ -38,4 +38,4 @@ The installer auto-installs any missing CLI deps (`jq`, `git`, `curl`, `awk`) vi
 
 All in `statusline.sh` — bar width (`14`), glyphs (`▰`/`▱`), and 256-color codes.
 
-MIT © Sergey Chilingaryan
+MIT © [Sergey Chilingaryan](https://github.com/sergchil-tb)
