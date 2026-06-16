@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Installer for cc-statusline-chili-edition
-# Copies statusline.sh into ~/.claude/ and wires it into settings.json.
+# Copies statusline.sh into ~/.claude/ (or $CLAUDE_CONFIG_DIR) and wires it into settings.json.
 #
 set -euo pipefail
 
@@ -17,7 +17,7 @@ fi
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 DEST="$CLAUDE_DIR/statusline.sh"
 SETTINGS="$CLAUDE_DIR/settings.json"
-CMD='bash "$HOME/.claude/statusline.sh"'
+CMD="bash \"$DEST\""   # point the status line command at the file we actually install
 
 c_ok="\033[38;5;157m"; c_info="\033[38;5;111m"; c_warn="\033[38;5;222m"; c_dim="\033[2m"; c_rst="\033[0m"
 say()  { printf "${c_info}▸${c_rst} %s\n" "$1"; }
@@ -46,6 +46,13 @@ done
 
 mkdir -p "$CLAUDE_DIR"
 
+# ── Ensure the target dir is writable (friendly message instead of a raw error) ──
+if ! ( : > "$CLAUDE_DIR/.cc_wtest" ) 2>/dev/null; then
+    warn "$CLAUDE_DIR is not writable — check permissions and re-run."
+    exit 1
+fi
+rm -f "$CLAUDE_DIR/.cc_wtest"
+
 # ── Install the script (back up any existing one) ───────
 if [ -f "$DEST" ]; then
     backup="$DEST.bak.$(date +%Y%m%d%H%M%S)"
@@ -61,20 +68,20 @@ fi
 chmod +x "$DEST"
 ok "Installed statusline.sh → $DEST"
 
-# ── Wire it into settings.json (preserve everything else) ──
+# ── Wire it into settings.json (preserve everything else; always valid JSON via jq) ──
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
 if [ -f "$SETTINGS" ]; then
-    tmp="$(mktemp)"
-    jq --arg cmd "$CMD" '.statusLine = {type: "command", command: $cmd}' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
-    ok "Updated statusLine in $SETTINGS"
+    if jq --arg cmd "$CMD" '.statusLine = {type: "command", command: $cmd}' "$SETTINGS" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$SETTINGS"
+        ok "Updated statusLine in $SETTINGS"
+    else
+        warn "$SETTINGS is not valid JSON — fix or remove it, then re-run."
+        exit 1
+    fi
 else
-    cat > "$SETTINGS" <<EOF
-{
-  "statusLine": {
-    "type": "command",
-    "command": "$CMD"
-  }
-}
-EOF
+    jq -n --arg cmd "$CMD" '{statusLine: {type: "command", command: $cmd}}' > "$tmp"
+    mv "$tmp" "$SETTINGS"
     ok "Created $SETTINGS with statusLine configured"
 fi
 
