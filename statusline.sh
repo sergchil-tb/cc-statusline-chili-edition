@@ -2,7 +2,7 @@
 # Resilient by design: never abort mid-render — a blank status line is worse than a
 # partial one. No `set -e`. Homebrew bins are prepended so jq/bc resolve even when
 # Claude Code runs this with a minimal PATH (e.g. Apple Silicon /opt/homebrew/bin).
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/AppData/Local/Microsoft/WinGet/Links:$HOME/scoop/shims:/c/ProgramData/chocolatey/bin:$PATH"
 
 DATA=$(cat)
 
@@ -94,8 +94,8 @@ fmt_reset() {
 # ── Context bar + cost color ────────────────────────────
 BAR=$(mini_bar "$PCT" 14)
 CTX_CLR=$(pct_clr "$PCT")
-if (( $(echo "$COST > 10" | bc -l) )); then COST_CLR="\033[38;5;203m"
-elif (( $(echo "$COST > 2" | bc -l) )); then COST_CLR="\033[38;5;222m"
+if awk "BEGIN{exit !($COST > 10)}"; then COST_CLR="\033[38;5;203m"
+elif awk "BEGIN{exit !($COST > 2)}"; then COST_CLR="\033[38;5;222m"
 else COST_CLR="\033[38;5;157m"; fi
 
 # ── Thinking glyph + effort word ────────────────────────
@@ -112,7 +112,7 @@ esac
 
 # ── Limits: cached usage API (full bucket set), fall back to stdin .rate_limits ──
 USAGE=""
-CACHE_FILE="/tmp/claude-statusline-usage.json"
+CACHE_FILE="${TMPDIR:-${TEMP:-/tmp}}/claude-statusline-usage.json"
 if [ -f "$CACHE_FILE" ] && [ "$(( $(date +%s) - $(stat -f %m "$CACHE_FILE" 2>/dev/null || stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0) ))" -lt 60 ]; then
     USAGE=$(cat "$CACHE_FILE" 2>/dev/null || true)
 fi
@@ -187,3 +187,4 @@ echo -e "🧠 ${BAR} ${CTX_CLR}${PCT}%\033[0m${SEP}${COST_CLR}\$${COST}\033[0m${
 # Line 3 — rate limit / quota ; Line 4 — credits (under quota)
 [ -n "$RATE_LINE" ] && echo -e "$RATE_LINE"
 [ -n "$CREDIT_LINE" ] && echo -e "$CREDIT_LINE"
+true

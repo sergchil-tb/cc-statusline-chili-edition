@@ -17,31 +17,90 @@ fi
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 DEST="$CLAUDE_DIR/statusline.sh"
 SETTINGS="$CLAUDE_DIR/settings.json"
-CMD='bash "$HOME/.claude/statusline.sh"'
+# Absolute path baked in at install time so $HOME doesn't need shell expansion at runtime
+CMD="bash \"$DEST\""
 
 c_ok="\033[38;5;157m"; c_info="\033[38;5;111m"; c_warn="\033[38;5;222m"; c_dim="\033[2m"; c_rst="\033[0m"
 say()  { printf "${c_info}▸${c_rst} %s\n" "$1"; }
 ok()   { printf "${c_ok}✓${c_rst} %s\n" "$1"; }
 warn() { printf "${c_warn}!${c_rst} %s\n" "$1"; }
 
-# ── Dependencies: auto-install any that are missing (Homebrew) ──
+# ── Dependencies: auto-install any that are missing ─────────────
+# apt/dnf/pacman/zypper use "gawk"; everything else matches the binary name
 pkg_for() { case "$1" in awk) echo gawk ;; *) echo "$1" ;; esac; }
+
+# winget uses vendor IDs; scoop/choco use the plain package name
+winget_id() {
+    case "$1" in
+        jq)   echo "jqlang.jq" ;;
+        git)  echo "Git.Git" ;;
+        curl) echo "cURL.cURL" ;;
+        awk|gawk) echo "GnuWin32.Gawk" ;;
+        *)    echo "$1" ;;
+    esac
+}
+
+is_windows() { [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "$(uname -s 2>/dev/null)" == MINGW* ]]; }
+
+try_install() {
+    local dep="$1" pkg; pkg="$(pkg_for "$1")"
+    if is_windows; then
+        local wid; wid="$(winget_id "$dep")"
+        if command -v winget >/dev/null 2>&1; then
+            say "Installing $dep via winget…"
+            winget install --id "$wid" -e --accept-source-agreements >/dev/null 2>&1 && return 0
+        fi
+        if command -v scoop >/dev/null 2>&1; then
+            say "Installing $dep via scoop…"
+            scoop install "$pkg" >/dev/null 2>&1 && return 0
+        fi
+        if command -v choco >/dev/null 2>&1; then
+            say "Installing $dep via choco…"
+            choco install "$pkg" -y >/dev/null 2>&1 && return 0
+        fi
+        warn "'$dep' is missing. Install it then re-run this script:"
+        warn "  winget install $wid"
+        warn "  scoop install $pkg   (if you use Scoop)"
+        warn "  choco install $pkg   (if you use Chocolatey)"
+        exit 1
+    elif command -v brew >/dev/null 2>&1; then
+        say "Installing $pkg via Homebrew…"
+        brew install "$pkg" >/dev/null 2>&1 && return 0
+        warn "Couldn't install '$dep'. Run: brew install $pkg"
+        exit 1
+    elif command -v apt-get >/dev/null 2>&1; then
+        say "Installing $pkg via apt…"
+        sudo apt-get install -y "$pkg" >/dev/null 2>&1 && return 0
+    elif command -v dnf >/dev/null 2>&1; then
+        say "Installing $pkg via dnf…"
+        sudo dnf install -y "$pkg" >/dev/null 2>&1 && return 0
+    elif command -v yum >/dev/null 2>&1; then
+        say "Installing $pkg via yum…"
+        sudo yum install -y "$pkg" >/dev/null 2>&1 && return 0
+    elif command -v pacman >/dev/null 2>&1; then
+        say "Installing $pkg via pacman…"
+        sudo pacman -Sy --noconfirm "$pkg" >/dev/null 2>&1 && return 0
+    elif command -v zypper >/dev/null 2>&1; then
+        say "Installing $pkg via zypper…"
+        sudo zypper install -y "$pkg" >/dev/null 2>&1 && return 0
+    else
+        warn "'$dep' is missing and no supported package manager was found."
+        warn "Install it manually, then re-run this script."
+        exit 1
+    fi
+    warn "Couldn't auto-install '$dep'. Install it manually, then re-run."
+    exit 1
+}
 
 for dep in jq git curl awk; do
     command -v "$dep" >/dev/null 2>&1 && continue
-    pkg="$(pkg_for "$dep")"
-    if ! command -v brew >/dev/null 2>&1; then
-        warn "'$dep' is missing and Homebrew isn't installed."
-        warn "Install Homebrew (https://brew.sh) then run: brew install $pkg"
+    try_install "$dep"
+    # PATH may not yet include a freshly installed binary; re-check before continuing
+    if ! command -v "$dep" >/dev/null 2>&1; then
+        warn "'$dep' was installed but isn't in PATH yet. Restart your shell and re-run."
         exit 1
     fi
-    say "Installing missing dependency: $pkg"
-    if brew install "$pkg" >/dev/null 2>&1 && command -v "$dep" >/dev/null 2>&1; then
-        ok "Installed $dep"
-    else
-        warn "Couldn't install '$dep'. Run manually: brew install $pkg"
-        exit 1
-    fi
+    ok "Installed $dep"
 done
 
 mkdir -p "$CLAUDE_DIR"
