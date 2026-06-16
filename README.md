@@ -4,6 +4,8 @@ An informative, multi-line status line for [Claude Code](https://code.claude.com
 
 Built for **Claude Enterprise** accounts (where the standard 5-hour / weekly buckets are `null` and usage lives in a plan-quota + credits bucket instead), but it degrades gracefully to Pro/Max session limits too.
 
+![cc-statusline-chili-edition preview](docs/preview.png)
+
 ```
 Opus 4.8[1m] │ 📁 talabat-mobile-app-flutter │ 🌿 master
 🧠 ▰▰▱▱▱▱▱▱▱▱▱▱▱▱ 21% │ $7.16 │ ✦ high
