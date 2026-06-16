@@ -5,7 +5,15 @@
 #
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAW_BASE="https://raw.githubusercontent.com/sergchil-tb/cc-statusline-chili-edition/main"
+
+# Run from a clone → copy the local statusline.sh. Piped via curl → download it.
+SELF="${BASH_SOURCE[0]:-}"
+LOCAL_SRC=""
+if [ -n "$SELF" ] && [ -f "$(dirname "$SELF")/statusline.sh" ]; then
+    LOCAL_SRC="$(cd "$(dirname "$SELF")" && pwd)/statusline.sh"
+fi
+
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 DEST="$CLAUDE_DIR/statusline.sh"
 SETTINGS="$CLAUDE_DIR/settings.json"
@@ -44,7 +52,12 @@ if [ -f "$DEST" ]; then
     cp "$DEST" "$backup"
     say "Backed up existing statusline.sh → $(basename "$backup")"
 fi
-cp "$SCRIPT_DIR/statusline.sh" "$DEST"
+if [ -n "$LOCAL_SRC" ]; then
+    cp "$LOCAL_SRC" "$DEST"
+else
+    say "Downloading statusline.sh…"
+    curl -fsSL "$RAW_BASE/statusline.sh" -o "$DEST"
+fi
 chmod +x "$DEST"
 ok "Installed statusline.sh → $DEST"
 
