@@ -32,7 +32,7 @@ Bars are green < 50% · yellow 50–80% · red > 80%. On Pro/Max the limit rows 
 
 ## Requirements
 
-`jq`, `git`, `curl`, `awk`, a 256-color + emoji-capable terminal. macOS or Linux.
+The installer auto-installs any missing CLI deps (`jq`, `git`, `curl`, `awk`) via Homebrew. You just need a 256-color + emoji-capable terminal.
 
 ## Customize
 

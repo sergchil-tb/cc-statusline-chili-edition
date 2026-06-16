@@ -16,16 +16,25 @@ say()  { printf "${c_info}▸${c_rst} %s\n" "$1"; }
 ok()   { printf "${c_ok}✓${c_rst} %s\n" "$1"; }
 warn() { printf "${c_warn}!${c_rst} %s\n" "$1"; }
 
-# ── Dependency check ────────────────────────────────────
-missing=""
+# ── Dependencies: auto-install any that are missing (Homebrew) ──
+pkg_for() { case "$1" in awk) echo gawk ;; *) echo "$1" ;; esac; }
+
 for dep in jq git curl awk; do
-    command -v "$dep" >/dev/null 2>&1 || missing="$missing $dep"
+    command -v "$dep" >/dev/null 2>&1 && continue
+    pkg="$(pkg_for "$dep")"
+    if ! command -v brew >/dev/null 2>&1; then
+        warn "'$dep' is missing and Homebrew isn't installed."
+        warn "Install Homebrew (https://brew.sh) then run: brew install $pkg"
+        exit 1
+    fi
+    say "Installing missing dependency: $pkg"
+    if brew install "$pkg" >/dev/null 2>&1 && command -v "$dep" >/dev/null 2>&1; then
+        ok "Installed $dep"
+    else
+        warn "Couldn't install '$dep'. Run manually: brew install $pkg"
+        exit 1
+    fi
 done
-if [ -n "$missing" ]; then
-    warn "Missing dependencies:$missing"
-    warn "Install them first (macOS: 'brew install jq', git/curl/awk ship with the OS)."
-    exit 1
-fi
 
 mkdir -p "$CLAUDE_DIR"
 
