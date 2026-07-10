@@ -99,13 +99,33 @@ pct_clr() {
     elif [ "$p" -gt 50 ] 2>/dev/null; then printf "\033[38;5;222m"
     else printf "\033[38;5;157m"; fi
 }
-fmt_reset() {
-    local iso="$1" stripped out=""
-    [ -z "$iso" ] || [ "$iso" = "null" ] && return
-    stripped="${iso%%.*}"; stripped="${stripped%%+*}"; stripped="${stripped%%Z}"
-    out=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$stripped" +"%b %-d" 2>/dev/null \
-          || date -d "${stripped/T/ }" +"%b %-d" 2>/dev/null || true)
-    printf '%s' "$out" | tr '[:upper:]' '[:lower:]'
+# Reset-time helpers. The usage API returns UTC timestamps (…+00:00). We parse them
+# AS UTC and render in the machine's local zone — otherwise the day flips by one near
+# midnight UTC (e.g. a Sunday-4am-local reset shows as the previous day).
+to_epoch() {  # ISO-8601 (UTC) → unix epoch; empty + rc1 on failure
+    local iso="$1" s="${1%%.*}"; s="${s%%+*}"; s="${s%%Z}"
+    { [ -z "$iso" ] || [ "$iso" = "null" ]; } && return 1
+    date -j -u -f "%Y-%m-%dT%H:%M:%S" "$s" +%s 2>/dev/null && return 0  # BSD/macOS
+    date -u -d "$iso" +%s 2>/dev/null && return 0                       # GNU/Linux
+    return 1
+}
+_epoch_fmt() { date -r "$1" +"$2" 2>/dev/null || date -d "@$1" +"$2" 2>/dev/null; }
+fmt_day() {   # → "sun 4:00am" (local weekday + time, rounded to the minute)
+    local e; e=$(to_epoch "$1") || return; e=$(( (e + 30) / 60 * 60 ))
+    _epoch_fmt "$e" '%a %-I:%M%p' | tr '[:upper:]' '[:lower:]'
+}
+fmt_date() {  # → "jul 12" (local date; used for far-off enterprise quotas)
+    local e; e=$(to_epoch "$1") || return
+    _epoch_fmt "$e" '%b %-d' | tr '[:upper:]' '[:lower:]'
+}
+fmt_countdown() {  # → "in 1h 42m" relative to now (like the app's session reset)
+    local e now diff h m; e=$(to_epoch "$1") || return
+    now=$(date +%s); diff=$(( e - now ))
+    [ "$diff" -le 0 ] 2>/dev/null && { printf 'now'; return; }
+    h=$(( diff / 3600 )); m=$(( (diff % 3600) / 60 ))
+    if   [ "$h" -gt 0 ] && [ "$m" -gt 0 ]; then printf 'in %dh %dm' "$h" "$m"
+    elif [ "$h" -gt 0 ]; then printf 'in %dh' "$h"
+    else printf 'in %dm' "$m"; fi
 }
 cache_age() {  # seconds since mtime, or a huge number if absent
     local f="$1"
@@ -167,24 +187,35 @@ fi
 [ -z "$USAGE" ] && USAGE=$(echo "$DATA" | jq -c '.rate_limits // empty' 2>/dev/null || true)
 
 SEP="\033[38;5;248m │ \033[0m"
-RATE_LINE=""    # session / weekly / quota (own line)
-CREDIT_LINE=""  # extra credits (stacked under quota)
+FIVE_LINE=""    # 5-hour session          (own line)
+WEEK_LINE=""    # weekly all-models + per-model scoped limits (own line, under 5h)
+CREDIT_LINE=""  # extra credits           (own line)
 if [ -n "$USAGE" ]; then
-    add_rate() { [ -n "$RATE_LINE" ] && RATE_LINE+="$SEP"; RATE_LINE+="$1"; }
-
     f_util=$(echo "$USAGE" | jq -r '.five_hour.utilization // empty' 2>/dev/null || true)
     w_util=$(echo "$USAGE" | jq -r '.seven_day.utilization // empty' 2>/dev/null || true)
 
+    # 5-hour session — reset shown as a countdown (e.g. "in 1h 42m"), like the app.
     if [ -n "$f_util" ]; then
-        p=$(printf "%.0f" "$f_util" 2>/dev/null || echo 0); r=$(fmt_reset "$(echo "$USAGE" | jq -r '.five_hour.resets_at // empty')")
-        seg="⏱️ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[38;5;248m ⟳ ${r}\033[0m"
-        add_rate "$seg"
+        p=$(printf "%.0f" "$f_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.five_hour.resets_at // empty')")
+        FIVE_LINE="⏱️ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m ⟳ ${r}\033[0m"
     fi
+    # Weekly (all models) — reset shown as weekday + time (e.g. "sun 4:00am").
     if [ -n "$w_util" ]; then
-        p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_reset "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
-        seg="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[38;5;248m ⟳ ${r}\033[0m"
-        add_rate "$seg"
+        p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_day "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
+        WEEK_LINE="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && WEEK_LINE+="\033[38;5;248m ⟳ ${r}\033[0m"
     fi
+    # Per-model weekly caps (e.g. Fable) — appended to the weekly line when present.
+    # These share the weekly reset, so we label by model name and skip a repeat reset.
+    while IFS=$'\t' read -r sp sname; do
+        [ -z "$sname" ] && continue
+        spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0)
+        seg="\033[38;5;250m${sname}\033[0m $(mini_bar "$spi" 14) $(pct_clr "$spi")${spi}%\033[0m"
+        [ -n "$WEEK_LINE" ] && WEEK_LINE+="$SEP"
+        WEEK_LINE+="$seg"
+    done < <(echo "$USAGE" | jq -r '(.limits // [])
+        | map(select(.group=="weekly" and .scope != null and (.scope.model.display_name // "") != ""))
+        | .[] | "\(.percent)\t\(.scope.model.display_name)"' 2>/dev/null || true)
+
     # Enterprise: five_hour/seven_day null → highest non-null named bucket as quota
     if [ -z "$f_util" ] && [ -z "$w_util" ]; then
         top=$(echo "$USAGE" | jq -r 'to_entries
@@ -192,9 +223,8 @@ if [ -n "$USAGE" ]; then
             | sort_by(.value.utilization) | last
             | if . == null then empty else "\(.value.utilization)\t\(.value.resets_at // "")" end' 2>/dev/null || true)
         if [ -n "$top" ]; then
-            p=$(printf "%.0f" "$(echo "$top" | cut -f1)" 2>/dev/null || echo 0); r=$(fmt_reset "$(echo "$top" | cut -f2)")
-            seg="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && seg+="\033[38;5;248m ⟳ ${r}\033[0m"
-            add_rate "$seg"
+            p=$(printf "%.0f" "$(echo "$top" | cut -f1)" 2>/dev/null || echo 0); r=$(fmt_date "$(echo "$top" | cut -f2)")
+            FIVE_LINE="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m ⟳ ${r}\033[0m"
         fi
     fi
     # Extra credits — own line, with progress bar
@@ -218,8 +248,9 @@ printf '\033[38;5;111;1m%s\033[0m\033[38;5;248m%s\033[0m\033[38;5;248m │ \033[
 printf '\n'
 # Line 2 — session (only numeric/enum data here)
 echo -e "🧠 ${BAR} ${CTX_CLR}${PCT}%\033[0m${SEP}${COST_CLR}\$${COST}\033[0m${SEP}${THINK_TOK} ${EFFORT_TOK}"
-# Lines 3-4 — limits
-[ -n "$RATE_LINE" ] && echo -e "$RATE_LINE"
+# Lines 3-5 — limits: 5-hour, then weekly (+ per-model caps), then extra credits
+[ -n "$FIVE_LINE" ] && echo -e "$FIVE_LINE"
+[ -n "$WEEK_LINE" ] && echo -e "$WEEK_LINE"
 [ -n "$CREDIT_LINE" ] && echo -e "$CREDIT_LINE"
 
 exit 0   # ALWAYS succeed — a non-zero exit makes Claude Code render a blank line
