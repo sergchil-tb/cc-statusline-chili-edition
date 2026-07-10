@@ -110,9 +110,9 @@ to_epoch() {  # ISO-8601 (UTC) → unix epoch; empty + rc1 on failure
     return 1
 }
 _epoch_fmt() { date -r "$1" +"$2" 2>/dev/null || date -d "@$1" +"$2" 2>/dev/null; }
-fmt_day() {   # → "sun 4:00am" (local weekday + time, rounded to the minute)
+fmt_day() {   # → "jul 12 sunday 4:00am" (local date + weekday + time, rounded to min)
     local e; e=$(to_epoch "$1") || return; e=$(( (e + 30) / 60 * 60 ))
-    _epoch_fmt "$e" '%a %-I:%M%p' | tr '[:upper:]' '[:lower:]'
+    _epoch_fmt "$e" '%b %-d %A %-I:%M%p' | tr '[:upper:]' '[:lower:]'
 }
 fmt_date() {  # → "jul 12" (local date; used for far-off enterprise quotas)
     local e; e=$(to_epoch "$1") || return
@@ -187,9 +187,10 @@ fi
 [ -z "$USAGE" ] && USAGE=$(echo "$DATA" | jq -c '.rate_limits // empty' 2>/dev/null || true)
 
 SEP="\033[38;5;248m │ \033[0m"
-FIVE_LINE=""    # 5-hour session          (own line)
-WEEK_LINE=""    # weekly all-models + per-model scoped limits (own line, under 5h)
-CREDIT_LINE=""  # extra credits           (own line)
+FIVE_LINE=""    # 5-hour session                (own line)
+WEEK_LINE=""    # weekly all-models             (own line, under 5h)
+SCOPED_LINE=""  # per-model weekly caps (Fable) (own line(s), under weekly)
+CREDIT_LINE=""  # extra credits                 (own line)
 if [ -n "$USAGE" ]; then
     f_util=$(echo "$USAGE" | jq -r '.five_hour.utilization // empty' 2>/dev/null || true)
     w_util=$(echo "$USAGE" | jq -r '.seven_day.utilization // empty' 2>/dev/null || true)
@@ -204,17 +205,17 @@ if [ -n "$USAGE" ]; then
         p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_day "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
         WEEK_LINE="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && WEEK_LINE+="\033[38;5;248m ⟳ ${r}\033[0m"
     fi
-    # Per-model weekly caps (e.g. Fable) — appended to the weekly line when present.
-    # These share the weekly reset, so we label by model name and skip a repeat reset.
-    while IFS=$'\t' read -r sp sname; do
+    # Per-model weekly caps (e.g. Fable) — each on its own line under the weekly total,
+    # labelled by model name (🤖) and carrying its own reset. Multiple models stack.
+    while IFS=$'\t' read -r sp sname sreset; do
         [ -z "$sname" ] && continue
-        spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0)
-        seg="\033[38;5;250m${sname}\033[0m $(mini_bar "$spi" 14) $(pct_clr "$spi")${spi}%\033[0m"
-        [ -n "$WEEK_LINE" ] && WEEK_LINE+="$SEP"
-        WEEK_LINE+="$seg"
+        spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0); sr=$(fmt_day "$sreset")
+        seg="🤖 \033[38;5;250m${sname}\033[0m $(mini_bar "$spi" 14) $(pct_clr "$spi")${spi}%\033[0m"; [ -n "$sr" ] && seg+="\033[38;5;248m ⟳ ${sr}\033[0m"
+        [ -n "$SCOPED_LINE" ] && SCOPED_LINE+=$'\n'
+        SCOPED_LINE+="$seg"
     done < <(echo "$USAGE" | jq -r '(.limits // [])
         | map(select(.group=="weekly" and .scope != null and (.scope.model.display_name // "") != ""))
-        | .[] | "\(.percent)\t\(.scope.model.display_name)"' 2>/dev/null || true)
+        | .[] | "\(.percent)\t\(.scope.model.display_name)\t\(.resets_at // "")"' 2>/dev/null || true)
 
     # Enterprise: five_hour/seven_day null → highest non-null named bucket as quota
     if [ -z "$f_util" ] && [ -z "$w_util" ]; then
@@ -248,9 +249,10 @@ printf '\033[38;5;111;1m%s\033[0m\033[38;5;248m%s\033[0m\033[38;5;248m │ \033[
 printf '\n'
 # Line 2 — session (only numeric/enum data here)
 echo -e "🧠 ${BAR} ${CTX_CLR}${PCT}%\033[0m${SEP}${COST_CLR}\$${COST}\033[0m${SEP}${THINK_TOK} ${EFFORT_TOK}"
-# Lines 3-5 — limits: 5-hour, then weekly (+ per-model caps), then extra credits
-[ -n "$FIVE_LINE" ] && echo -e "$FIVE_LINE"
-[ -n "$WEEK_LINE" ] && echo -e "$WEEK_LINE"
+# Lines 3+ — limits: 5-hour, weekly, per-model caps (Fable, …), then extra credits
+[ -n "$FIVE_LINE" ]   && echo -e "$FIVE_LINE"
+[ -n "$WEEK_LINE" ]   && echo -e "$WEEK_LINE"
+[ -n "$SCOPED_LINE" ] && echo -e "$SCOPED_LINE"
 [ -n "$CREDIT_LINE" ] && echo -e "$CREDIT_LINE"
 
 exit 0   # ALWAYS succeed — a non-zero exit makes Claude Code render a blank line
