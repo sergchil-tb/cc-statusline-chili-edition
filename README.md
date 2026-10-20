@@ -24,7 +24,7 @@ The installer copies `statusline.sh` to `~/.claude/` (backing up any existing on
 ```
 Opus 4.8[1m] │ 📁 project │ 🌿 branch     ← model (·[1m] = 1M ctx) · folder · git branch
 🧠 ━━─… 24% │ $9.38 │ ◆ high              ← context used · session cost · thinking/effort
-🚦 ━━━… 45% resets sep 3                  ← rate-limit / plan quota + reset
+🚦 ━━━… 45% resets in 18 days 3h          ← rate-limit / plan quota + reset
 💳 ━… $21/$300 7%                         ← extra credits used / limit
 ```
 

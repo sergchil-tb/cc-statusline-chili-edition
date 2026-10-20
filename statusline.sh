@@ -99,9 +99,8 @@ pct_clr() {
     elif [ "$p" -gt 50 ] 2>/dev/null; then printf "\033[38;5;222m"
     else printf "\033[38;5;157m"; fi
 }
-# Reset-time helpers. The usage API returns UTC timestamps (…+00:00). We parse them
-# AS UTC and render in the machine's local zone — otherwise the day flips by one near
-# midnight UTC (e.g. a Sunday-4am-local reset shows as the previous day).
+# Reset-time helpers. The usage API returns UTC timestamps (…+00:00), parsed AS UTC
+# so the countdown is right in every local zone.
 to_epoch() {  # ISO-8601 (UTC) → unix epoch; empty + rc1 on failure
     local iso="$1" s="${1%%.*}"; s="${s%%+*}"; s="${s%%Z}"
     { [ -z "$iso" ] || [ "$iso" = "null" ]; } && return 1
@@ -109,20 +108,16 @@ to_epoch() {  # ISO-8601 (UTC) → unix epoch; empty + rc1 on failure
     date -u -d "$iso" +%s 2>/dev/null && return 0                       # GNU/Linux
     return 1
 }
-_epoch_fmt() { date -r "$1" +"$2" 2>/dev/null || date -d "@$1" +"$2" 2>/dev/null; }
-fmt_day() {   # → "jul 12 sunday 4:00am" (local date + weekday + time, rounded to min)
-    local e; e=$(to_epoch "$1") || return; e=$(( (e + 30) / 60 * 60 ))
-    _epoch_fmt "$e" '%b %-d %A %-I:%M%p' | tr '[:upper:]' '[:lower:]'
-}
-fmt_date() {  # → "jul 12" (local date; used for far-off enterprise quotas)
-    local e; e=$(to_epoch "$1") || return
-    _epoch_fmt "$e" '%b %-d' | tr '[:upper:]' '[:lower:]'
-}
-fmt_countdown() {  # → "in 1h 42m" relative to now (like the app's session reset)
-    local e now diff h m; e=$(to_epoch "$1") || return
+fmt_countdown() {  # → "in 4 days 17h" / "in 1h 42m" relative to now (like the app)
+    local e now diff d h m; e=$(to_epoch "$1") || return
     now=$(date +%s); diff=$(( e - now ))
     [ "$diff" -le 0 ] 2>/dev/null && { printf 'now'; return; }
-    h=$(( diff / 3600 )); m=$(( (diff % 3600) / 60 ))
+    d=$(( diff / 86400 )); h=$(( (diff % 86400) / 3600 )); m=$(( (diff % 3600) / 60 ))
+    if [ "$d" -gt 0 ]; then
+        [ "$d" -eq 1 ] && printf 'in 1 day' || printf 'in %d days' "$d"
+        [ "$h" -gt 0 ] && printf ' %dh' "$h"
+        return
+    fi
     if   [ "$h" -gt 0 ] && [ "$m" -gt 0 ]; then printf 'in %dh %dm' "$h" "$m"
     elif [ "$h" -gt 0 ]; then printf 'in %dh' "$h"
     else printf 'in %dm' "$m"; fi
@@ -200,16 +195,16 @@ if [ -n "$USAGE" ]; then
         p=$(printf "%.0f" "$f_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.five_hour.resets_at // empty')")
         FIVE_LINE="⏳ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m resets ${r}\033[0m"
     fi
-    # Weekly (all models) — reset shown as weekday + time (e.g. "sun 4:00am").
+    # Weekly (all models) — reset shown as a countdown (e.g. "in 4 days 17h").
     if [ -n "$w_util" ]; then
-        p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_day "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
+        p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
         WEEK_LINE="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && WEEK_LINE+="\033[38;5;248m resets ${r}\033[0m"
     fi
     # Per-model weekly caps (e.g. Fable) — each on its own line under the weekly total,
     # labelled by model name (🤖) and carrying its own reset. Multiple models stack.
     while IFS=$'\t' read -r sp sname sreset; do
         [ -z "$sname" ] && continue
-        spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0); sr=$(fmt_day "$sreset")
+        spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0); sr=$(fmt_countdown "$sreset")
         seg="🤖 \033[38;5;250m${sname}\033[0m $(mini_bar "$spi" 14) $(pct_clr "$spi")${spi}%\033[0m"; [ -n "$sr" ] && seg+="\033[38;5;248m resets ${sr}\033[0m"
         [ -n "$SCOPED_LINE" ] && SCOPED_LINE+=$'\n'
         SCOPED_LINE+="$seg"
@@ -224,7 +219,7 @@ if [ -n "$USAGE" ]; then
             | sort_by(.value.utilization) | last
             | if . == null then empty else "\(.value.utilization)\t\(.value.resets_at // "")" end' 2>/dev/null || true)
         if [ -n "$top" ]; then
-            p=$(printf "%.0f" "$(echo "$top" | cut -f1)" 2>/dev/null || echo 0); r=$(fmt_date "$(echo "$top" | cut -f2)")
+            p=$(printf "%.0f" "$(echo "$top" | cut -f1)" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$top" | cut -f2)")
             FIVE_LINE="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m resets ${r}\033[0m"
         fi
     fi
