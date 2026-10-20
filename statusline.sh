@@ -79,20 +79,22 @@ fi
 BRANCH=$(git -c core.useBuiltinFSMonitor=false branch --show-current 2>/dev/null || echo "")
 
 # ── Helpers ─────────────────────────────────────────────
-# Palette: solid block on a dim dotted track of the same hue.
-#   green (≤50%) 71 on 22 · yellow (51–80%) 185 on 58 · red (>80%) 203 on 52
+# Bar: coloured dots (●) on grey rings (○). Centred in the row with space around each,
+# so stacked bars never merge (full blocks do); fill and track differ in colour and
+# shape, so it reads at any level.
+#   fill: green (≤50%) 71 · yellow (51–80%) 185 · red (>80%) 203 · track: grey 240
 mini_bar() {
-    local pct=$1 width=$2 clr trk i out=""
+    local pct=$1 width=$2 clr i out=""
     case "$pct" in ''|*[!0-9-]*) pct=0 ;; esac
     [ "$pct" -gt 100 ] 2>/dev/null && pct=100
     [ "$pct" -lt 0 ] 2>/dev/null && pct=0
     local filled=$(( pct * width / 100 ))
     [ "$filled" -eq 0 ] && [ "$pct" -gt 0 ] && filled=1   # always show a sliver for nonzero
-    if [ "$pct" -gt 80 ]; then clr="\033[38;5;203m"; trk="\033[38;5;52m"
-    elif [ "$pct" -gt 50 ]; then clr="\033[38;5;185m"; trk="\033[38;5;58m"
-    else clr="\033[38;5;71m"; trk="\033[38;5;22m"; fi
-    out+="$clr"; for ((i=0; i<filled; i++)); do out+="█"; done
-    out+="$trk"; for ((i=filled; i<width; i++)); do out+="░"; done
+    if [ "$pct" -gt 80 ]; then clr="\033[38;5;203m"
+    elif [ "$pct" -gt 50 ]; then clr="\033[38;5;185m"
+    else clr="\033[38;5;71m"; fi
+    out+="$clr"; for ((i=0; i<filled; i++)); do out+="●"; done
+    out+="\033[38;5;240m"; for ((i=filled; i<width; i++)); do out+="○"; done
     printf '%b\033[0m' "$out"
 }
 pct_clr() {
@@ -110,19 +112,19 @@ to_epoch() {  # ISO-8601 (UTC) → unix epoch; empty + rc1 on failure
     date -u -d "$iso" +%s 2>/dev/null && return 0                       # GNU/Linux
     return 1
 }
-fmt_countdown() {  # → "in 4 days 17h" / "in 1h 42m" relative to now (like the app)
+fmt_countdown() {  # → "4 days 17h" / "1h 42m" relative to now (like the app)
     local e now diff d h m; e=$(to_epoch "$1") || return
     now=$(date +%s); diff=$(( e - now ))
     [ "$diff" -le 0 ] 2>/dev/null && { printf 'now'; return; }
     d=$(( diff / 86400 )); h=$(( (diff % 86400) / 3600 )); m=$(( (diff % 3600) / 60 ))
     if [ "$d" -gt 0 ]; then
-        [ "$d" -eq 1 ] && printf 'in 1 day' || printf 'in %d days' "$d"
+        [ "$d" -eq 1 ] && printf '1 day' || printf '%d days' "$d"
         [ "$h" -gt 0 ] && printf ' %dh' "$h"
         return
     fi
-    if   [ "$h" -gt 0 ] && [ "$m" -gt 0 ]; then printf 'in %dh %dm' "$h" "$m"
-    elif [ "$h" -gt 0 ]; then printf 'in %dh' "$h"
-    else printf 'in %dm' "$m"; fi
+    if   [ "$h" -gt 0 ] && [ "$m" -gt 0 ]; then printf '%dh %dm' "$h" "$m"
+    elif [ "$h" -gt 0 ]; then printf '%dh' "$h"
+    else printf '%dm' "$m"; fi
 }
 cache_age() {  # seconds since mtime, or a huge number if absent
     local f="$1"
@@ -187,19 +189,19 @@ SEP="\033[38;5;248m │ \033[0m"
 # Rows are collected first and printed at the end, once the widest label is known.
 R_ICON=(); R_LABEL=(); R_PCT=(); R_TAIL=()
 add_row() { R_ICON+=("$1"); R_LABEL+=("$2"); R_PCT+=("$3"); R_TAIL+=("$4"); }
-reset_tail() { [ -n "$1" ] && printf '\033[38;5;248m resets %s\033[0m' "$1"; }
+reset_tail() { [ -n "$1" ] && printf ' 🔄\033[38;5;248m %s\033[0m' "$1"; }
 
 add_row "🧠" "context" "$PCT" "${SEP}${COST_CLR}\$${COST}\033[0m"
 if [ -n "$USAGE" ]; then
     f_util=$(echo "$USAGE" | jq -r '.five_hour.utilization // empty' 2>/dev/null || true)
     w_util=$(echo "$USAGE" | jq -r '.seven_day.utilization // empty' 2>/dev/null || true)
 
-    # 5-hour session — reset shown as a countdown (e.g. "in 1h 42m"), like the app.
+    # 5-hour session — reset shown as a countdown (e.g. "1h 42m"), like the app.
     if [ -n "$f_util" ]; then
         p=$(printf "%.0f" "$f_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.five_hour.resets_at // empty')")
         add_row "⏳" "session" "$p" "$(reset_tail "$r")"
     fi
-    # Weekly (all models) — reset shown as a countdown (e.g. "in 4 days 17h").
+    # Weekly (all models) — reset shown as a countdown (e.g. "4 days 17h").
     if [ -n "$w_util" ]; then
         p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
         add_row "📅" "weekly" "$p" "$(reset_tail "$r")"
