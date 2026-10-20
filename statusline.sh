@@ -182,13 +182,13 @@ fi
 # Last resort: whatever the status payload itself carried
 [ -z "$USAGE" ] && USAGE=$(echo "$DATA" | jq -c '.rate_limits // empty' 2>/dev/null || true)
 
-SEP="\033[38;5;248m │ \033[0m"
+SEP="\033[38;5;248m | \033[0m"
 # Every bar row is a fixed set of columns so the lines read as a table:
 #   icon  label(padded)  bar  pct(right-aligned to 4)  tail
 # Rows are collected first and printed at the end, once the widest label is known.
 R_ICON=(); R_LABEL=(); R_PCT=(); R_TAIL=()
 add_row() { R_ICON+=("$1"); R_LABEL+=("$2"); R_PCT+=("$3"); R_TAIL+=("$4"); }
-reset_tail() { [ -n "$1" ] && printf '\033[38;5;248m │ %s\033[0m' "$1"; }
+reset_tail() { [ -n "$1" ] && printf '\033[38;5;248m | %s\033[0m' "$1"; }
 
 add_row "🧠" "context" "$PCT" "${SEP}${COST_CLR}\$${COST}\033[0m"
 if [ -n "$USAGE" ]; then
@@ -244,8 +244,8 @@ fi
 # containing a tab, %, or backslash can never inject control chars or desync columns.
 printf '\033[38;5;111;1m%s\033[0m\033[38;5;248m%s\033[0m' "$MODEL_BASE" "$MODEL_TAG"
 printf ' %b %b' "$THINK_TOK" "$EFFORT_TOK"   # thinking glyph + effort sit with the model
-printf '\033[38;5;248m │ \033[0m\033[38;5;111m📁 %s\033[0m' "$DIR"
-[ -n "$BRANCH" ] && printf '\033[38;5;248m │ \033[0m\033[38;5;176m🌿 %s\033[0m' "$BRANCH"
+printf '\033[38;5;248m | \033[0m\033[38;5;111m📁 %s\033[0m' "$DIR"
+[ -n "$BRANCH" ] && printf '\033[38;5;248m | \033[0m\033[38;5;176m🌿 %s\033[0m' "$BRANCH"
 printf '\n'
 # Lines 2+ — context, then limits: session, weekly, per-model caps (Fable, …), quota, credits
 LABEL_W=0
