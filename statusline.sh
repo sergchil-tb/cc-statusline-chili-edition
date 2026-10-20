@@ -79,9 +79,9 @@ fi
 BRANCH=$(git -c core.useBuiltinFSMonitor=false branch --show-current 2>/dev/null || echo "")
 
 # ── Helpers ─────────────────────────────────────────────
-# Bar: coloured dots (●) on grey rings (○). Centred in the row with space around each,
-# so stacked bars never merge (full blocks do); fill and track differ in colour and
-# shape, so it reads at any level.
+# Bar: a heavy coloured line (━) on a thin grey track (─). Both are centred and narrow,
+# so stacked bars keep a gap between rows (full blocks merge into one slab), and the
+# fill differs from the track in both colour and weight, so it reads at any level.
 #   fill: green (≤50%) 71 · yellow (51–80%) 185 · red (>80%) 203 · track: grey 240
 mini_bar() {
     local pct=$1 width=$2 clr i out=""
@@ -93,8 +93,8 @@ mini_bar() {
     if [ "$pct" -gt 80 ]; then clr="\033[38;5;203m"
     elif [ "$pct" -gt 50 ]; then clr="\033[38;5;185m"
     else clr="\033[38;5;71m"; fi
-    out+="$clr"; for ((i=0; i<filled; i++)); do out+="●"; done
-    out+="\033[38;5;240m"; for ((i=filled; i<width; i++)); do out+="○"; done
+    out+="$clr"; for ((i=0; i<filled; i++)); do out+="━"; done
+    out+="\033[38;5;240m"; for ((i=filled; i<width; i++)); do out+="─"; done
     printf '%b\033[0m' "$out"
 }
 pct_clr() {
