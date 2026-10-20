@@ -188,7 +188,7 @@ SEP="\033[38;5;248m │ \033[0m"
 # Rows are collected first and printed at the end, once the widest label is known.
 R_ICON=(); R_LABEL=(); R_PCT=(); R_TAIL=()
 add_row() { R_ICON+=("$1"); R_LABEL+=("$2"); R_PCT+=("$3"); R_TAIL+=("$4"); }
-reset_tail() { [ -n "$1" ] && printf ' 🔄\033[38;5;248m %s\033[0m' "$1"; }
+reset_tail() { [ -n "$1" ] && printf '\033[38;5;248m │ %s\033[0m' "$1"; }
 
 add_row "🧠" "context" "$PCT" "${SEP}${COST_CLR}\$${COST}\033[0m"
 if [ -n "$USAGE" ]; then
