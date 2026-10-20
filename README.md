@@ -22,13 +22,15 @@ The installer copies `statusline.sh` to `~/.claude/` (backing up any existing on
 ## What it shows
 
 ```
-Opus 4.8[1m] │ 📁 project │ 🌿 branch     ← model (·[1m] = 1M ctx) · folder · git branch
-🧠 ━━─… 24% │ $9.38 │ ◆ high              ← context used · session cost · thinking/effort
-🚦 ━━━… 45% resets in 18 days 3h          ← rate-limit / plan quota + reset
-💳 ━… $21/$300 7%                         ← extra credits used / limit
+Opus 4.8[1m] │ 📁 project │ 🌿 branch            ← model (·[1m] = 1M ctx) · folder · git branch
+🧠 context ━━━─────────── 24% │ $9.38 │ ◆ high  ← context used · session cost · thinking/effort
+🚦 quota   ━━━━━━────────  45% resets in 18 days ← rate-limit / plan quota + reset
+💳 credits ━─────────────   7% $21/$300          ← extra credits used / limit
 ```
 
-Bars are green < 50% · yellow 50–80% · red > 80%. On Pro/Max the limit rows show 5-hour (⏳) and weekly (📅) instead of the enterprise quota.
+Rows are columns — icon, label, bar, percentage (right-aligned), detail — so they line up like a table.
+
+Bars are green < 50% · yellow 50–80% · red > 80%. On Pro/Max the limit rows show 5-hour (⏳) and weekly (📅) instead of the enterprise quota, plus one 🤖 row per model with its own weekly cap (e.g. Fable).
 
 ## Requirements
 

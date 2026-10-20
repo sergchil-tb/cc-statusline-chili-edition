@@ -128,9 +128,7 @@ cache_age() {  # seconds since mtime, or a huge number if absent
     echo $(( $(date +%s) - $(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0) ))
 }
 
-# ── Context bar + cost color (awk math — no bc dependency) ──
-BAR=$(mini_bar "$PCT" 14)
-CTX_CLR=$(pct_clr "$PCT")
+# ── Cost color (awk math — no bc dependency) ──
 COST_CENTS=$(awk "BEGIN{printf \"%.0f\", ${COST_RAW:-0}*100}" 2>/dev/null || echo 0)
 case "$COST_CENTS" in ''|*[!0-9]*) COST_CENTS=0 ;; esac
 if   [ "$COST_CENTS" -gt 1000 ]; then COST_CLR="\033[38;5;203m"
@@ -182,10 +180,14 @@ fi
 [ -z "$USAGE" ] && USAGE=$(echo "$DATA" | jq -c '.rate_limits // empty' 2>/dev/null || true)
 
 SEP="\033[38;5;248m │ \033[0m"
-FIVE_LINE=""    # 5-hour session                (own line)
-WEEK_LINE=""    # weekly all-models             (own line, under 5h)
-SCOPED_LINE=""  # per-model weekly caps (Fable) (own line(s), under weekly)
-CREDIT_LINE=""  # extra credits                 (own line)
+# Every bar row is a fixed set of columns so the lines read as a table:
+#   icon  label(padded)  bar  pct(right-aligned to 4)  tail
+# Rows are collected first and printed at the end, once the widest label is known.
+R_ICON=(); R_LABEL=(); R_PCT=(); R_TAIL=()
+add_row() { R_ICON+=("$1"); R_LABEL+=("$2"); R_PCT+=("$3"); R_TAIL+=("$4"); }
+reset_tail() { [ -n "$1" ] && printf '\033[38;5;248m resets %s\033[0m' "$1"; }
+
+add_row "🧠" "context" "$PCT" "${SEP}${COST_CLR}\$${COST}\033[0m${SEP}${THINK_TOK} ${EFFORT_TOK}"
 if [ -n "$USAGE" ]; then
     f_util=$(echo "$USAGE" | jq -r '.five_hour.utilization // empty' 2>/dev/null || true)
     w_util=$(echo "$USAGE" | jq -r '.seven_day.utilization // empty' 2>/dev/null || true)
@@ -193,21 +195,19 @@ if [ -n "$USAGE" ]; then
     # 5-hour session — reset shown as a countdown (e.g. "in 1h 42m"), like the app.
     if [ -n "$f_util" ]; then
         p=$(printf "%.0f" "$f_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.five_hour.resets_at // empty')")
-        FIVE_LINE="⏳ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m resets ${r}\033[0m"
+        add_row "⏳" "session" "$p" "$(reset_tail "$r")"
     fi
     # Weekly (all models) — reset shown as a countdown (e.g. "in 4 days 17h").
     if [ -n "$w_util" ]; then
         p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
-        WEEK_LINE="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && WEEK_LINE+="\033[38;5;248m resets ${r}\033[0m"
+        add_row "📅" "weekly" "$p" "$(reset_tail "$r")"
     fi
-    # Per-model weekly caps (e.g. Fable) — each on its own line under the weekly total,
+    # Per-model weekly caps (e.g. Fable) — each on its own row under the weekly total,
     # labelled by model name (🤖) and carrying its own reset. Multiple models stack.
     while IFS=$'\t' read -r sp sname sreset; do
         [ -z "$sname" ] && continue
-        spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0); sr=$(fmt_countdown "$sreset")
-        seg="🤖 \033[38;5;250m${sname}\033[0m $(mini_bar "$spi" 14) $(pct_clr "$spi")${spi}%\033[0m"; [ -n "$sr" ] && seg+="\033[38;5;248m resets ${sr}\033[0m"
-        [ -n "$SCOPED_LINE" ] && SCOPED_LINE+=$'\n'
-        SCOPED_LINE+="$seg"
+        spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0)
+        add_row "🤖" "$sname" "$spi" "$(reset_tail "$(fmt_countdown "$sreset")")"
     done < <(echo "$USAGE" | jq -r '(.limits // [])
         | map(select(.group=="weekly" and .scope != null and (.scope.model.display_name // "") != ""))
         | .[] | "\(.percent)\t\(.scope.model.display_name)\t\(.resets_at // "")"' 2>/dev/null || true)
@@ -220,10 +220,10 @@ if [ -n "$USAGE" ]; then
             | if . == null then empty else "\(.value.utilization)\t\(.value.resets_at // "")" end' 2>/dev/null || true)
         if [ -n "$top" ]; then
             p=$(printf "%.0f" "$(echo "$top" | cut -f1)" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$top" | cut -f2)")
-            FIVE_LINE="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m resets ${r}\033[0m"
+            add_row "🚦" "quota" "$p" "$(reset_tail "$r")"
         fi
     fi
-    # Extra credits — own line, with progress bar
+    # Extra credits — own row, with progress bar
     extra_on=$(echo "$USAGE" | jq -r '.extra_usage.is_enabled // false' 2>/dev/null || true)
     if [ "$extra_on" = "true" ]; then
         eu=$(echo "$USAGE" | jq -r '.extra_usage.used_credits // 0' 2>/dev/null)
@@ -232,7 +232,7 @@ if [ -n "$USAGE" ]; then
         eud=$(awk "BEGIN{printf \"%.0f\", ${eu:-0}/100}" 2>/dev/null || echo 0)
         eld=$(awk "BEGIN{printf \"%.0f\", ${el:-0}/100}" 2>/dev/null || echo 0)
         epi=$(printf "%.0f" "${ep:-0}" 2>/dev/null || echo 0)
-        CREDIT_LINE="💳 $(mini_bar "$epi" 14) $(pct_clr "$epi")\$${eud}\033[38;5;248m/\033[0m\$${eld} ${epi}%\033[0m"
+        add_row "💳" "credits" "$epi" " $(pct_clr "$epi")\$${eud}\033[38;5;248m/\033[0m\$${eld}\033[0m"
     fi
 fi
 
@@ -242,12 +242,13 @@ fi
 printf '\033[38;5;111;1m%s\033[0m\033[38;5;248m%s\033[0m\033[38;5;248m │ \033[0m\033[38;5;111m📁 %s\033[0m' "$MODEL_BASE" "$MODEL_TAG" "$DIR"
 [ -n "$BRANCH" ] && printf '\033[38;5;248m │ \033[0m\033[38;5;176m🌿 %s\033[0m' "$BRANCH"
 printf '\n'
-# Line 2 — session (only numeric/enum data here)
-echo -e "🧠 ${BAR} ${CTX_CLR}${PCT}%\033[0m${SEP}${COST_CLR}\$${COST}\033[0m${SEP}${THINK_TOK} ${EFFORT_TOK}"
-# Lines 3+ — limits: 5-hour, weekly, per-model caps (Fable, …), then extra credits
-[ -n "$FIVE_LINE" ]   && echo -e "$FIVE_LINE"
-[ -n "$WEEK_LINE" ]   && echo -e "$WEEK_LINE"
-[ -n "$SCOPED_LINE" ] && echo -e "$SCOPED_LINE"
-[ -n "$CREDIT_LINE" ] && echo -e "$CREDIT_LINE"
+# Lines 2+ — context, then limits: session, weekly, per-model caps (Fable, …), quota, credits
+LABEL_W=0
+for l in "${R_LABEL[@]}"; do [ "${#l}" -gt "$LABEL_W" ] && LABEL_W=${#l}; done
+for i in "${!R_ICON[@]}"; do
+    p="${R_PCT[$i]}"
+    printf '%s \033[38;5;250m%-*s\033[0m ' "${R_ICON[$i]}" "$LABEL_W" "${R_LABEL[$i]}"
+    printf '%s %b%3s%%\033[0m%b\n' "$(mini_bar "$p" 14)" "$(pct_clr "$p")" "$p" "${R_TAIL[$i]}"
+done
 
 exit 0   # ALWAYS succeed — a non-zero exit makes Claude Code render a blank line
