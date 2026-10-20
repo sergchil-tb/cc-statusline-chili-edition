@@ -22,8 +22,8 @@ The installer copies `statusline.sh` to `~/.claude/` (backing up any existing on
 ## What it shows
 
 ```
-Opus 4.8[1m] │ 📁 project │ 🌿 branch            ← model (·[1m] = 1M ctx) · folder · git branch
-🧠 context ━━━───────────  24% │ $9.38 │ ◆ high  ← context used · session cost · thinking/effort
+Opus 4.8[1m] ◆ high │ 📁 project │ 🌿 branch     ← model (·[1m] = 1M ctx) · thinking/effort · folder · git branch
+🧠 context ━━━───────────  24% │ $9.38           ← context used · session cost
 🚦 quota   ━━━━━━────────  45% resets in 18 days ← rate-limit / plan quota + reset
 💳 credits ━─────────────   7% $21/$300          ← extra credits used / limit
 ```

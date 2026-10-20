@@ -187,7 +187,7 @@ R_ICON=(); R_LABEL=(); R_PCT=(); R_TAIL=()
 add_row() { R_ICON+=("$1"); R_LABEL+=("$2"); R_PCT+=("$3"); R_TAIL+=("$4"); }
 reset_tail() { [ -n "$1" ] && printf '\033[38;5;248m resets %s\033[0m' "$1"; }
 
-add_row "🧠" "context" "$PCT" "${SEP}${COST_CLR}\$${COST}\033[0m${SEP}${THINK_TOK} ${EFFORT_TOK}"
+add_row "🧠" "context" "$PCT" "${SEP}${COST_CLR}\$${COST}\033[0m"
 if [ -n "$USAGE" ]; then
     f_util=$(echo "$USAGE" | jq -r '.five_hour.utilization // empty' 2>/dev/null || true)
     w_util=$(echo "$USAGE" | jq -r '.seven_day.utilization // empty' 2>/dev/null || true)
@@ -237,9 +237,11 @@ if [ -n "$USAGE" ]; then
 fi
 
 # ── Output ──────────────────────────────────────────────
-# Line 1 — identity. Data fields (model/dir/branch) go through printf %s so a name
+# Line 1 — identity: model + effort, folder, branch. Data fields (model/dir/branch) go through printf %s so a name
 # containing a tab, %, or backslash can never inject control chars or desync columns.
-printf '\033[38;5;111;1m%s\033[0m\033[38;5;248m%s\033[0m\033[38;5;248m │ \033[0m\033[38;5;111m📁 %s\033[0m' "$MODEL_BASE" "$MODEL_TAG" "$DIR"
+printf '\033[38;5;111;1m%s\033[0m\033[38;5;248m%s\033[0m' "$MODEL_BASE" "$MODEL_TAG"
+printf ' %b %b' "$THINK_TOK" "$EFFORT_TOK"   # thinking glyph + effort sit with the model
+printf '\033[38;5;248m │ \033[0m\033[38;5;111m📁 %s\033[0m' "$DIR"
 [ -n "$BRANCH" ] && printf '\033[38;5;248m │ \033[0m\033[38;5;176m🌿 %s\033[0m' "$BRANCH"
 printf '\n'
 # Lines 2+ — context, then limits: session, weekly, per-model caps (Fable, …), quota, credits
