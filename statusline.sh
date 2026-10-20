@@ -79,25 +79,27 @@ fi
 BRANCH=$(git -c core.useBuiltinFSMonitor=false branch --show-current 2>/dev/null || echo "")
 
 # ── Helpers ─────────────────────────────────────────────
+# Palette: solid block on a dim dotted track of the same hue.
+#   green (≤50%) 71 on 22 · yellow (51–80%) 185 on 58 · red (>80%) 203 on 52
 mini_bar() {
-    local pct=$1 width=$2 clr i out=""
+    local pct=$1 width=$2 clr trk i out=""
     case "$pct" in ''|*[!0-9-]*) pct=0 ;; esac
     [ "$pct" -gt 100 ] 2>/dev/null && pct=100
     [ "$pct" -lt 0 ] 2>/dev/null && pct=0
     local filled=$(( pct * width / 100 ))
     [ "$filled" -eq 0 ] && [ "$pct" -gt 0 ] && filled=1   # always show a sliver for nonzero
-    if [ "$pct" -gt 80 ]; then clr="\033[38;5;203m"
-    elif [ "$pct" -gt 50 ]; then clr="\033[38;5;222m"
-    else clr="\033[38;5;157m"; fi
-    for ((i=0; i<filled; i++)); do out+="${clr}━"; done
-    for ((i=filled; i<width; i++)); do out+="\033[38;5;240m─"; done
+    if [ "$pct" -gt 80 ]; then clr="\033[38;5;203m"; trk="\033[38;5;52m"
+    elif [ "$pct" -gt 50 ]; then clr="\033[38;5;185m"; trk="\033[38;5;58m"
+    else clr="\033[38;5;71m"; trk="\033[38;5;22m"; fi
+    out+="$clr"; for ((i=0; i<filled; i++)); do out+="█"; done
+    out+="$trk"; for ((i=filled; i<width; i++)); do out+="░"; done
     printf '%b\033[0m' "$out"
 }
 pct_clr() {
     local p="${1:-0}"
     if   [ "$p" -gt 80 ] 2>/dev/null; then printf "\033[38;5;203m"
-    elif [ "$p" -gt 50 ] 2>/dev/null; then printf "\033[38;5;222m"
-    else printf "\033[38;5;157m"; fi
+    elif [ "$p" -gt 50 ] 2>/dev/null; then printf "\033[38;5;185m"
+    else printf "\033[38;5;71m"; fi
 }
 # Reset-time helpers. The usage API returns UTC timestamps (…+00:00), parsed AS UTC
 # so the countdown is right in every local zone.
@@ -132,8 +134,8 @@ cache_age() {  # seconds since mtime, or a huge number if absent
 COST_CENTS=$(awk "BEGIN{printf \"%.0f\", ${COST_RAW:-0}*100}" 2>/dev/null || echo 0)
 case "$COST_CENTS" in ''|*[!0-9]*) COST_CENTS=0 ;; esac
 if   [ "$COST_CENTS" -gt 1000 ]; then COST_CLR="\033[38;5;203m"
-elif [ "$COST_CENTS" -gt 200 ];  then COST_CLR="\033[38;5;222m"
-else COST_CLR="\033[38;5;157m"; fi
+elif [ "$COST_CENTS" -gt 200 ];  then COST_CLR="\033[38;5;185m"
+else COST_CLR="\033[38;5;71m"; fi
 
 # ── Thinking glyph + effort word ────────────────────────
 if [ "$THINK" = "true" ]; then THINK_TOK="\033[38;5;176m◆\033[0m"
@@ -141,7 +143,7 @@ else THINK_TOK="\033[38;5;248m◆\033[0m"; fi
 case "$EFFORT" in
   xhigh|max)  EFFORT_TOK="\033[38;5;176;1m$EFFORT\033[0m" ;;
   high)       EFFORT_TOK="\033[38;5;176m$EFFORT\033[0m" ;;
-  medium)     EFFORT_TOK="\033[38;5;222m$EFFORT\033[0m" ;;
+  medium)     EFFORT_TOK="\033[38;5;185m$EFFORT\033[0m" ;;
   low)        EFFORT_TOK="\033[38;5;248m$EFFORT\033[0m" ;;
   *)          EFFORT_TOK="\033[38;5;248m$EFFORT\033[0m" ;;
 esac
@@ -250,7 +252,7 @@ for l in "${R_LABEL[@]}"; do [ "${#l}" -gt "$LABEL_W" ] && LABEL_W=${#l}; done
 for i in "${!R_ICON[@]}"; do
     p="${R_PCT[$i]}"
     printf '%s \033[38;5;250m%-*s\033[0m ' "${R_ICON[$i]}" "$LABEL_W" "${R_LABEL[$i]}"
-    printf '%s %b%3s%%\033[0m%b\n' "$(mini_bar "$p" 14)" "$(pct_clr "$p")" "$p" "${R_TAIL[$i]}"
+    printf '%s %b%3s%%\033[0m%b\n' "$(mini_bar "$p" 10)" "$(pct_clr "$p")" "$p" "${R_TAIL[$i]}"
 done
 
 exit 0   # ALWAYS succeed — a non-zero exit makes Claude Code render a blank line
