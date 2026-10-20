@@ -79,10 +79,9 @@ fi
 BRANCH=$(git -c core.useBuiltinFSMonitor=false branch --show-current 2>/dev/null || echo "")
 
 # ── Helpers ─────────────────────────────────────────────
-# Bar: a heavy coloured line (━) on a thin grey track (─). Both are centred and narrow,
-# so stacked bars keep a gap between rows (full blocks merge into one slab), and the
-# fill differs from the track in both colour and weight, so it reads at any level.
-#   fill: green (≤50%) 71 · yellow (51–80%) 185 · red (>80%) 203 · track: grey 240
+# Bar: a heavy coloured line (━) on the same line in dark grey. Centred and narrow, so
+# stacked bars keep a gap between rows (full blocks merge into one slab).
+#   fill: green (≤50%) 71 · yellow (51–80%) 185 · red (>80%) 203 · track: grey 237
 mini_bar() {
     local pct=$1 width=$2 clr i out=""
     case "$pct" in ''|*[!0-9-]*) pct=0 ;; esac
@@ -94,7 +93,7 @@ mini_bar() {
     elif [ "$pct" -gt 50 ]; then clr="\033[38;5;185m"
     else clr="\033[38;5;71m"; fi
     out+="$clr"; for ((i=0; i<filled; i++)); do out+="━"; done
-    out+="\033[38;5;240m"; for ((i=filled; i<width; i++)); do out+="─"; done
+    out+="\033[38;5;237m"; for ((i=filled; i<width; i++)); do out+="━"; done
     printf '%b\033[0m' "$out"
 }
 pct_clr() {
