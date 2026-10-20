@@ -89,8 +89,8 @@ mini_bar() {
     if [ "$pct" -gt 80 ]; then clr="\033[38;5;203m"
     elif [ "$pct" -gt 50 ]; then clr="\033[38;5;222m"
     else clr="\033[38;5;157m"; fi
-    for ((i=0; i<filled; i++)); do out+="${clr}▰"; done
-    for ((i=filled; i<width; i++)); do out+="\033[38;5;244m▱"; done
+    for ((i=0; i<filled; i++)); do out+="${clr}━"; done
+    for ((i=filled; i<width; i++)); do out+="\033[38;5;240m─"; done
     printf '%b\033[0m' "$out"
 }
 pct_clr() {
@@ -143,8 +143,8 @@ elif [ "$COST_CENTS" -gt 200 ];  then COST_CLR="\033[38;5;222m"
 else COST_CLR="\033[38;5;157m"; fi
 
 # ── Thinking glyph + effort word ────────────────────────
-if [ "$THINK" = "true" ]; then THINK_TOK="\033[38;5;176m✦\033[0m"
-else THINK_TOK="\033[38;5;248m✦\033[0m"; fi
+if [ "$THINK" = "true" ]; then THINK_TOK="\033[38;5;176m◆\033[0m"
+else THINK_TOK="\033[38;5;248m◆\033[0m"; fi
 case "$EFFORT" in
   xhigh|max)  EFFORT_TOK="\033[38;5;176;1m$EFFORT\033[0m" ;;
   high)       EFFORT_TOK="\033[38;5;176m$EFFORT\033[0m" ;;
@@ -198,19 +198,19 @@ if [ -n "$USAGE" ]; then
     # 5-hour session — reset shown as a countdown (e.g. "in 1h 42m"), like the app.
     if [ -n "$f_util" ]; then
         p=$(printf "%.0f" "$f_util" 2>/dev/null || echo 0); r=$(fmt_countdown "$(echo "$USAGE" | jq -r '.five_hour.resets_at // empty')")
-        FIVE_LINE="⏱️ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m ⟳ ${r}\033[0m"
+        FIVE_LINE="⏳ $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m resets ${r}\033[0m"
     fi
     # Weekly (all models) — reset shown as weekday + time (e.g. "sun 4:00am").
     if [ -n "$w_util" ]; then
         p=$(printf "%.0f" "$w_util" 2>/dev/null || echo 0); r=$(fmt_day "$(echo "$USAGE" | jq -r '.seven_day.resets_at // empty')")
-        WEEK_LINE="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && WEEK_LINE+="\033[38;5;248m ⟳ ${r}\033[0m"
+        WEEK_LINE="📅 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && WEEK_LINE+="\033[38;5;248m resets ${r}\033[0m"
     fi
     # Per-model weekly caps (e.g. Fable) — each on its own line under the weekly total,
     # labelled by model name (🤖) and carrying its own reset. Multiple models stack.
     while IFS=$'\t' read -r sp sname sreset; do
         [ -z "$sname" ] && continue
         spi=$(printf "%.0f" "$sp" 2>/dev/null || echo 0); sr=$(fmt_day "$sreset")
-        seg="🤖 \033[38;5;250m${sname}\033[0m $(mini_bar "$spi" 14) $(pct_clr "$spi")${spi}%\033[0m"; [ -n "$sr" ] && seg+="\033[38;5;248m ⟳ ${sr}\033[0m"
+        seg="🤖 \033[38;5;250m${sname}\033[0m $(mini_bar "$spi" 14) $(pct_clr "$spi")${spi}%\033[0m"; [ -n "$sr" ] && seg+="\033[38;5;248m resets ${sr}\033[0m"
         [ -n "$SCOPED_LINE" ] && SCOPED_LINE+=$'\n'
         SCOPED_LINE+="$seg"
     done < <(echo "$USAGE" | jq -r '(.limits // [])
@@ -225,7 +225,7 @@ if [ -n "$USAGE" ]; then
             | if . == null then empty else "\(.value.utilization)\t\(.value.resets_at // "")" end' 2>/dev/null || true)
         if [ -n "$top" ]; then
             p=$(printf "%.0f" "$(echo "$top" | cut -f1)" 2>/dev/null || echo 0); r=$(fmt_date "$(echo "$top" | cut -f2)")
-            FIVE_LINE="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m ⟳ ${r}\033[0m"
+            FIVE_LINE="🚦 $(mini_bar "$p" 14) $(pct_clr "$p")${p}%\033[0m"; [ -n "$r" ] && FIVE_LINE+="\033[38;5;248m resets ${r}\033[0m"
         fi
     fi
     # Extra credits — own line, with progress bar

@@ -23,12 +23,12 @@ The installer copies `statusline.sh` to `~/.claude/` (backing up any existing on
 
 ```
 Opus 4.8[1m] │ 📁 project │ 🌿 branch     ← model (·[1m] = 1M ctx) · folder · git branch
-🧠 ▰▰▱… 24% │ $9.38 │ ✦ high              ← context used · session cost · thinking/effort
-🚦 ▰▰▰… 45% ⟳ sep 3                       ← rate-limit / plan quota + reset
-💳 ▰… $21/$300 7%                         ← extra credits used / limit
+🧠 ━━─… 24% │ $9.38 │ ◆ high              ← context used · session cost · thinking/effort
+🚦 ━━━… 45% resets sep 3                  ← rate-limit / plan quota + reset
+💳 ━… $21/$300 7%                         ← extra credits used / limit
 ```
 
-Bars are green < 50% · yellow 50–80% · red > 80%. On Pro/Max the limit rows show 5-hour (⏱) and weekly (📅) instead of the enterprise quota.
+Bars are green < 50% · yellow 50–80% · red > 80%. On Pro/Max the limit rows show 5-hour (⏳) and weekly (📅) instead of the enterprise quota.
 
 ## Requirements
 
@@ -36,6 +36,6 @@ The installer auto-installs any missing CLI deps (`jq`, `git`, `curl`, `awk`) vi
 
 ## Customize
 
-All in `statusline.sh` — bar width (`14`), glyphs (`▰`/`▱`), and 256-color codes.
+All in `statusline.sh` — bar width (`14`), glyphs (`━`/`─`; keep them to characters your terminal font has, or they render at the wrong width), and 256-color codes.
 
 MIT © [Sergey Chilingaryan](https://github.com/sergchil-tb)
